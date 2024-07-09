@@ -23,17 +23,17 @@ def _get_call_function(specification: str):
     call_function = code_manipulation.get_functions_called(specification)
     return call_function
 
-def load_adam_code():
-    adam_code_file = "../optimizers/adam.py"
+def load_adam_code(task="lasso"):
+    adam_code_file = "../pyADMM/"+ task + ".py"
     with open(adam_code_file, 'r') as f:
         ff = f.read()
         return ff
 
 if __name__ == "__main__":
     adam_code = load_adam_code()
-    # to_evolve, to_run = _extract_function_names(adam_code)
-    # function_to_evolve, function_to_run = _extract_function_names(adam_code)
-    function_to_evolve = "test"
+    to_evolve, to_run = _extract_function_names(adam_code)
+    function_to_evolve, function_to_run = _extract_function_names(adam_code)
+    # function_to_evolve = "test"
     function_list = _get_call_function(adam_code)
     template = code_manipulation.text_to_program(adam_code)
     config = config_lib.Config()

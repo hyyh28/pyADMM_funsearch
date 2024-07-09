@@ -54,6 +54,7 @@ class Lasso(basis_pursuit._ADMM):
 
 
 @jit(cache=True)
+@funsearch.evolve
 def _fit(A, b, lam, rho, alpha, abstol, reltol, max_iter):
     n, p = A.shape
     x = np.zeros((p, 1))
@@ -124,6 +125,7 @@ def _factor(A, rho):
     return np.asarray(L), np.asarray(L.T)
 
 
+@funsearch.run
 def main():
     n = 150
     p = 500
