@@ -52,9 +52,7 @@ class Lasso(basis_pursuit._ADMM):
         }
         return x
 
-
 @jit(cache=True)
-@funsearch.evolve
 def _fit(A, b, lam, rho, alpha, abstol, reltol, max_iter):
     n, p = A.shape
     x = np.zeros((p, 1))
@@ -117,6 +115,7 @@ def _factor(A, rho):
     """
     n, p = A.shape
     if n >= p:
+
         L = cholesky(A.T.dot(A) + rho * np.eye(p))
     else:
         L = cholesky(np.eye(n) + 1 / rho * (A @ A.T))
@@ -125,7 +124,6 @@ def _factor(A, rho):
     return np.asarray(L), np.asarray(L.T)
 
 
-@funsearch.run
 def main():
     n = 150
     p = 500
@@ -140,7 +138,7 @@ def main():
 
     x_true = x.toarray()
 
-    lasso = Lasso(lam, 1, 1, max_iter=100)
+    lasso = Lasso(lam=0.1, rho=0.05, alpha=1, max_iter=100)
     x = lasso.fit(A, b)
     t0 = time()
     x = lasso.fit(A, b)

@@ -15,6 +15,10 @@
 
 """Configuration of a FunSearch experiment."""
 import dataclasses
+from typing import Type
+from implementation import sampler
+from implementation import evaluator
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -57,3 +61,11 @@ class Config:
   num_samplers: int = 15
   num_evaluators: int = 140
   samples_per_prompt: int = 4
+
+
+@dataclasses.dataclass()
+class ClassConfig:
+    """Implemented by RZ. Configuration of 'class LLM' and 'class SandBox' used in this implementation.
+    """
+    llm_class: Type[sampler.LLM]
+    sandbox_class: Type[evaluator.Sandbox]

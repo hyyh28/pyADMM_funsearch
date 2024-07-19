@@ -1,11 +1,15 @@
+from time import time
 import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
-from numpy.linalg import cholesky
-from numpy.linalg import solve
-from scipy.sparse import spdiags
-
+from numpy.linalg import lstsq, cholesky, solve
+from scipy import sparse
+from sklearn.linear_model import Lasso as skLasso
 import basis_pursuit
+from openai import OpenAI
+
+# Set your OpenAI API key
+# openai.api_key = 'your_openai_api_key'
 
 
 class GroupLasso(basis_pursuit._ADMM):
@@ -130,53 +134,101 @@ def _factor(A, rho):
     #U = sparse.csc_matrix(L.T)
     return np.asarray(L), np.asarray(L.T)
 
+
+def get_llm_suggestion(previous_reward=None):
+    prompt = "Suggest parameters lam, rho, and alpha for the ADMM optimizer to deal with Group LASSO problem. Only output the parameters such like lam=x, rho=y, alpha=z,(where x, y, z are float) no descriptions."
+    if previous_reward is not None:
+        prompt += f" The previous reward was {previous_reward:.4f}. You need to improve the performance by given better parameters."
+    client = OpenAI(api_key="sk-66575172e83e40b2bbcaa1cf6b9f0ae8", base_url="https://api.deepseek.com")
+
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "You are an experienced mathematician."},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=1024,
+        temperature=0.1,
+        stream=False
+    )
+
+    suggestion = response.choices[0].message.content
+    params = {}
+    for param in suggestion.split(","):
+        key, value = param.split("=")
+        params[key.strip()] = float(value.strip())
+
+    return params['lam'], params['rho'], params['alpha']
+
+
+def calculate_reward(performance):
+    # Reward function: maxmize the number of iterations
+    return -performance
+
+
+def evaluate_parameters(lam, rho, alpha, A, b, x_true):
+    lasso = Lasso(lam=lam, rho=rho, alpha=alpha, max_iter=100)
+    t0 = time()
+    x_pred = lasso.fit(A, b)
+    elapsed_time = time() - t0
+
+    performance = np.mean((x_true.ravel() - x_pred.ravel()) ** 2)
+    iterations = len(lasso.history['objval'])  # Number of iterations
+
+    return elapsed_time, performance, iterations
+
+
 def main():
-    n = 1500
-    K = 200
-    partition = np.random.randint(int(50), size=(K, 1))
-    p = int(sum(partition))
-    sparsity = 100 / p
+    n = 150
+    p = 500
+    sparsity = 0.05
+    x = sparse.rand(p, 1, sparsity)
+    A = np.random.rand(n, p)
+    A = A @ sparse.spdiags(1 / np.sqrt(np.sum(A ** 2, axis=0)), 0, p, p)
+    b = A @ x
 
-    x = np.zeros((p, 1))
-    cum_part = np.cumsum(partition)
-    cum_part = np.concatenate(([0], cum_part))
-    for i, start_ind in enumerate(cum_part[:-1]):
-        x[start_ind:cum_part[i + 1]] = 0
-        if np.random.randn() < sparsity:
-            x[start_ind:cum_part[i + 1]] = np.random.randn(int(partition[i]), 1)
+    x_true = x.toarray()
 
-    A = np.random.randn(n, p)
-    A = A @ spdiags(1 / np.sqrt(np.sum(A ** 2, axis=0)), 0, p, p)
-    b = A @ x + np.sqrt(0.001) * np.random.randn(n, 1)
+    num_iterations = 10
+    previous_reward = None
 
-    lams = [
-        np.linalg.norm(A[:, start_ind : cum_part[i + 1]].T @ b)
-        for i, start_ind in enumerate(cum_part[:-1])
-    ]
+    lams = []
+    rhos = []
+    alphas = []
+    rewards = []
 
-    lambda_max = max(lams)
-    lam = 0.1 * lambda_max
+    for i in range(num_iterations):
+        lam, rho, alpha = get_llm_suggestion(previous_reward)
+        time_taken, performance, iterations = evaluate_parameters(lam, rho, alpha, A, b, x_true)
+        reward = calculate_reward(time_taken)
 
-    x_true = x
+        print(
+            f"Iteration {i + 1}: lam={lam}, rho={rho}, alpha={alpha}, time={time_taken:.4f}s, performance={performance:.4f}, iterations={iterations}, reward={reward:.4f}")
 
-    lasso = GroupLasso(lam, 1, 1, max_iter=100)
-    x = lasso.fit(A, b, partition)
+        lams.append(lam)
+        rhos.append(rho)
+        alphas.append(alpha)
+        rewards.append(reward)
 
-    fig, axs = plt.subplots(3, 1, sharex=True)
+        previous_reward = reward
 
-    axs[0].plot(lasso.history['objval'])
-    axs[0].set_ylabel('f(x^k) + g(z^k)')
+    # Plotting the learning curves
+    fig, axs = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
 
-    axs[1].plot(lasso.history['r_norm'])
-    axs[1].plot(lasso.history['eps_pri'])
-    axs[1].set_yscale('log')
-    axs[1].set_ylabel('||r||_2')
+    axs[0].plot(lams, marker='o')
+    axs[0].set_ylabel('lam')
+    axs[0].set_title('Learning Curves for lasso')
 
-    axs[2].plot(lasso.history['s_norm'])
-    axs[2].plot(lasso.history['eps_dual'])
-    axs[2].set_yscale('log')
-    axs[2].set_ylabel('||s||_2')
-    axs[2].set_xlabel('iter (k)')
+    axs[1].plot(rhos, marker='o')
+    axs[1].set_ylabel('rho')
+
+    axs[2].plot(alphas, marker='o')
+    axs[2].set_ylabel('alpha')
+
+    axs[3].plot(rewards, marker='o')
+    axs[3].set_ylabel('reward')
+    axs[3].set_xlabel('Iteration')
+
     plt.tight_layout()
     plt.show()
 
