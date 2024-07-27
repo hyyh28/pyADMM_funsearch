@@ -8,8 +8,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import scipy.io as sio
-import scipy.misc
-
+import imageio
+from PIL import Image
 
 
 ## network definition
@@ -20,6 +20,8 @@ class DLADMMNet(nn.Module):
         self.n = n
         self.d = d
         self.batch_size = batch_size
+
+
         self.A = A.cuda()
         self.Z0 = Z0.cuda()
         self.E0 = E0.cuda()
@@ -148,7 +150,7 @@ def dual_gap(x, alpha):
 
 
 np.random.seed(1126)
-os.environ["CUDA_VISIBLE_DEVICES"]="7"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 m, d, n = 256, 512, 10000
 n_test = 1024
 batch_size = 20
@@ -262,7 +264,8 @@ for epoch in range(num_epoch):
 
     # save recovered image
     img = trans2image(best_pic)
-    scipy.misc.imsave('lena_01.jpg', img)
+    img = Image.fromarray(img).convert("RGB")
+    imageio.imsave('lena_01.jpg', img)
     
 
 
