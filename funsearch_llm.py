@@ -166,73 +166,87 @@ class Sandbox(evaluator.Sandbox):
 
 specification = r'''
 import numpy as np
+import matplotlib.pyplot as plt
+
+# Function to construct the l1_admm problem
+def construct_l1_admm(A, B, opts):
+    m, n = A.shape
+    X = np.zeros((n, B.shape[1]))
+    Z = np.zeros_like(X)
+    U = np.zeros_like(X)
+    return X, Z, U
 
 
-def get_valid_bin_indices(item: float, bins: np.ndarray) -> np.ndarray:
-    """Returns indices of bins in which item can fit."""
-    return np.nonzero((bins - item) >= 0)[0]
+# Function for the ADMM learning process
+@funsearch.evolve
+def admm_learning(A, B, X, Z, U, opts):
+    rho = opts['rho']
+    epsilon = 1e-6
+    losses = []
+
+    for k in range(opts['max_iter']):
+
+        # constant learning rate
+        alpha = 1
+
+        # X-update (least squares problem)
+        X = np.linalg.solve(A.T @ A + rho * np.eye(X.shape[0]), A.T @ B + rho * (Z - U))
+
+        # Z-update (soft thresholding)
+        Z_old = Z
+        Z = np.maximum(0, X + U - 1 / rho) - np.maximum(0, -X - U - 1 / rho)
+
+        # U-update (dual variable update)
+        U = U + alpha * (X - Z)
+
+        # Compute loss
+        loss = np.linalg.norm(A @ Z - B, 'fro')
+        losses.append(loss)
+
+        # Check convergence based on change in loss
+        if k > 0 and abs(losses[-1] - losses[-2]) < epsilon and loss < 5:
+            break
+
+    return Z, loss, k, losses
 
 
-def online_binpack(
-        items: tuple[float, ...], bins: np.ndarray
-) -> tuple[list[list[float, ...], ...], np.ndarray]:
-    """Performs online binpacking of `items` into `bins`."""
-    # Track which items are added to each bin.
-    packing = [[] for _ in bins]
-    # Add items to bins.
-    for item in items:
-        # Extract bins that have sufficient space to fit item.
-        valid_bin_indices = get_valid_bin_indices(item, bins)
-        # Score each bin based on heuristic.
-        priorities = priority(item, bins[valid_bin_indices])
-        # Add item to bin with highest priority.
-        best_bin = valid_bin_indices[np.argmax(priorities)]
-        bins[best_bin] -= item
-        packing[best_bin].append(item)
-    # Remove unused bins from packing.
-    packing = [bin_items for bin_items in packing if bin_items]
-    return packing, bins
-
+# Function to evaluate the result
+def evaluate_result(Z, A, B):
+    loss = np.linalg.norm(A @ Z - B, 'fro')
+    return loss
 
 @funsearch.run
-def evaluate(instances: dict) -> float:
-    """Evaluate heuristic function on a set of online binpacking instances."""
-    # List storing number of bins used for each instance.
-    num_bins = []
-    # Perform online binpacking for each instance.
-    for name in instances:
-        instance = instances[name]
-        capacity = instance['capacity']
-        items = instance['items']
-        # Create num_items bins so there will always be space for all items,
-        # regardless of packing order. Array has shape (num_items,).
-        bins = np.array([capacity for _ in range(instance['num_items'])])
-        # Pack items into bins and return remaining capacity in bins_packed, which
-        # has shape (num_items,).
-        _, bins_packed = online_binpack(items, bins)
-        # If remaining capacity in a bin is equal to initial capacity, then it is
-        # unused. Count number of used bins.
-        num_bins.append((bins_packed != capacity).sum())
-    # Score of heuristic function is negative of average number of bins used
-    # across instances (as we want to minimize number of bins).
-    return -np.mean(num_bins)
+def evaluate():
+    # Generate toy data
+    d = 10
+    na = 200
+    nb = 100
 
+    A = np.random.randn(d, na)
+    X_true = np.random.randn(na, nb)
+    B = np.dot(A, X_true)
+    b = B[:, 0]
 
-@funsearch.evolve
-def priority(item: float, bins: np.ndarray) -> np.ndarray:
-    """Returns priority with which we want to add item to each bin.
+    opts = {
+        'tol': 1e-6,
+        'max_iter': 1000,
+        'rho': 1.1,
+        'mu': 1e-4,
+        'max_mu': 1e10,
+        'DEBUG': 0
+    }
 
-    Args:
-        item: Size of item to be added to the bin.
-        bins: Array of capacities for each bin.
+    # Construct the l1_admm problem
+    X, Z, U = construct_l1_admm(A, B, opts)
 
-    Return:
-        Array of same size as bins with priority score of each bin.
-    """
-    ratios = item / bins
-    log_ratios = np.log(ratios)
-    priorities = -log_ratios
-    return priorities
+    # ADMM learning process
+    Z, loss, iter_, losses = admm_learning(A, B, X, Z, U, opts)
+
+    # Evaluate the result
+    final_loss = evaluate_result(Z, A, B)
+    print(iter_, final_loss)
+
+    return -iter_
 '''
 
 # It should be noted that the if __name__ == '__main__' is required.
