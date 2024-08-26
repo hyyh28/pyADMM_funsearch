@@ -17,7 +17,7 @@ class LLMAPI(sampler.LLM):
 
     def __init__(self, samples_per_prompt: int):
         super().__init__(samples_per_prompt)
-        additional_prompt = ('Complete a different and more complex Python function. '
+        additional_prompt = ('Please modify the ADMM optimizer in the provided l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter mu should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed or simply scaled by rho. The modification should allow for a more adaptive penalty parameter that could, for example, increase or decrease depending on the convergence speed or error metrics. Ensure that the updated mu is used correctly in the updates for X, Z, Y1, and Y2. Additionally, if possible, provide a brief explanation of the changes made and how they improve the optimization process.'
                              'Be creative and you can insert multiple if-else and for-loop in the code logic.'
                              'Only output the Python code, no descriptions.')
         self._additional_prompt = additional_prompt
@@ -35,7 +35,7 @@ class LLMAPI(sampler.LLM):
                 payload = json.dumps({
                     "messages": [
                         {
-                            "content": "You are a helpful programmer who is familar with python and math.",
+                            "content": "You are a helpful programmer who is familar with python and Admm in optimization. ",
                             "role": "system"
                         },
                         {
@@ -78,7 +78,7 @@ class Sandbox(evaluator.Sandbox):
     2) stops the execution of the code in time (avoid endless loop).
     """
 
-    def __init__(self, verbose=False, numba_accelerate=True):
+    def __init__(self, verbose=False, numba_accelerate=False):
         """
         Args:
             verbose         : Print evaluate information.
@@ -166,7 +166,6 @@ class Sandbox(evaluator.Sandbox):
 
 specification = r'''
 import numpy as np
-import matplotlib.pyplot as plt
 
 def prox_l1(b, lambd):
     # The proximal operator of the l1 norm
@@ -235,10 +234,8 @@ def evaluate(instances:dict) -> float:
     X = np.random.randn(na, nb)
     B = A @ X
     b = B[:, 0]
-
     # Options for the l1 minimization
-    opts = instances['opts']
-
+    opts = instances
     # Perform l1 minimization
     X2, obj, err, iter = l1(A, B, opts)
     print(f'Iterations: {iter}, Objective: {obj}, Error: {err}')
@@ -251,7 +248,7 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     admm_l1_config = admm_utils.datasets['l1']
-    global_max_sample_num = 10  # if it is set to None, funsearch will execute an endless loop
+    global_max_sample_num = 100  # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
         inputs=admm_l1_config,
