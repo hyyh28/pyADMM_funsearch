@@ -8,7 +8,7 @@ from implementation import sampler
 from implementation import evaluator_accelerate
 from implementation import evaluator
 from implementation import code_manipulation
-import bin_packing_utils
+import admm_utils
 
 
 class LLMAPI(sampler.LLM):
@@ -17,7 +17,7 @@ class LLMAPI(sampler.LLM):
 
     def __init__(self, samples_per_prompt: int):
         super().__init__(samples_per_prompt)
-        additional_prompt = ('Complete a different and more complex Python function. '
+        additional_prompt = ('Please modify the ADMM optimizer in the provided l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter mu should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed or simply scaled by rho. The modification should allow for a more adaptive penalty parameter that could, for example, increase or decrease depending on the convergence speed or error metrics. Ensure that the updated mu is used correctly in the updates for X, Z, Y1, and Y2. Additionally, if possible, provide a brief explanation of the changes made and how they improve the optimization process.'
                              'Be creative and you can insert multiple if-else and for-loop in the code logic.'
                              'Only output the Python code, no descriptions.')
         self._additional_prompt = additional_prompt
@@ -35,7 +35,7 @@ class LLMAPI(sampler.LLM):
                 payload = json.dumps({
                     "messages": [
                         {
-                            "content": "You are a helpful programmer who is familar with python and math.",
+                            "content": "You are a helpful programmer who is familar with python and Admm in optimization. ",
                             "role": "system"
                         },
                         {
@@ -78,7 +78,7 @@ class Sandbox(evaluator.Sandbox):
     2) stops the execution of the code in time (avoid endless loop).
     """
 
-    def __init__(self, verbose=False, numba_accelerate=True):
+    def __init__(self, verbose=False, numba_accelerate=False):
         """
         Args:
             verbose         : Print evaluate information.
@@ -166,87 +166,80 @@ class Sandbox(evaluator.Sandbox):
 
 specification = r'''
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Function to construct the l1_admm problem
-def construct_l1_admm(A, B, opts):
-    m, n = A.shape
-    X = np.zeros((n, B.shape[1]))
-    Z = np.zeros_like(X)
-    U = np.zeros_like(X)
-    return X, Z, U
+def prox_l1(b, lambd):
+    # The proximal operator of the l1 norm
+    return np.maximum(0, b - lambd) + np.minimum(0, b + lambd)
 
-
-# Function for the ADMM learning process
 @funsearch.evolve
-def admm_learning(A, B, X, Z, U, opts):
-    rho = opts['rho']
-    epsilon = 1e-6
-    losses = []
+def l1(A, B, opts):
+    # Set default options
+    tol = opts.get('tol', 1e-8)
+    max_iter = opts.get('max_iter', 500)
+    rho = opts.get('rho', 1.1)
+    mu = opts.get('mu', 1e-4)
+    max_mu = opts.get('max_mu', 1e10)
+    DEBUG = opts.get('DEBUG', 0)
+    
+    d, na = A.shape
+    _, nb = B.shape
 
-    for k in range(opts['max_iter']):
+    X = np.zeros((na, nb))
+    Z = np.zeros_like(X)
+    Y1 = np.zeros((d, nb))
+    Y2 = np.zeros_like(X)
 
-        # constant learning rate
-        alpha = 1
+    AtB = A.T @ B
+    I = np.eye(na)
+    invAtAI = np.linalg.inv(A.T @ A + I) @ I
 
-        # X-update (least squares problem)
-        X = np.linalg.solve(A.T @ A + rho * np.eye(X.shape[0]), A.T @ B + rho * (Z - U))
-
-        # Z-update (soft thresholding)
-        Z_old = Z
-        Z = np.maximum(0, X + U - 1 / rho) - np.maximum(0, -X - U - 1 / rho)
-
-        # U-update (dual variable update)
-        U = U + alpha * (X - Z)
-
-        # Compute loss
-        loss = np.linalg.norm(A @ Z - B, 'fro')
-        losses.append(loss)
-
-        # Check convergence based on change in loss
-        if k > 0 and abs(losses[-1] - losses[-2]) < epsilon and loss < 5:
+    for iter in range(1, max_iter + 1):
+        Xk = X.copy()
+        Zk = Z.copy()
+        # update X
+        X = prox_l1(Z - Y2 / mu, 1 / mu)
+        # update Z
+        Z = invAtAI @ (-A.T @ Y1 / mu + AtB + Y2 / mu + X)
+        dY1 = A @ Z - B
+        dY2 = X - Z
+        chgX = np.max(np.abs(Xk - X))
+        chgZ = np.max(np.abs(Zk - Z))
+        chg = max([chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2))])
+        
+        if DEBUG and (iter == 1 or iter % 10 == 0):
+            obj = np.linalg.norm(X.ravel(), 1)
+            err = np.sqrt(np.linalg.norm(dY1, 'fro')**2 + np.linalg.norm(dY2, 'fro')**2)
+            print(f'iter {iter}, mu={mu}, obj={obj}, err={err}')
+        
+        if chg < tol:
             break
-
-    return Z, loss, k, losses
-
-
-# Function to evaluate the result
-def evaluate_result(Z, A, B):
-    loss = np.linalg.norm(A @ Z - B, 'fro')
-    return loss
-
+        
+        Y1 = Y1 + mu * dY1
+        Y2 = Y2 + mu * dY2
+        mu = min(rho * mu, max_mu)
+    
+    obj = np.linalg.norm(X.ravel(), 1)
+    err = np.sqrt(np.linalg.norm(dY1, 'fro')**2 + np.linalg.norm(dY2, 'fro')**2)
+    
+    return X, obj, err, iter
+    
 @funsearch.run
-def evaluate():
+def evaluate(instances:dict) -> float:
     # Generate toy data
-    d = 10
-    na = 200
-    nb = 100
+    d = instances['d']
+    na = instances['na']
+    nb = instances['nb']
 
     A = np.random.randn(d, na)
-    X_true = np.random.randn(na, nb)
-    B = np.dot(A, X_true)
+    X = np.random.randn(na, nb)
+    B = A @ X
     b = B[:, 0]
-
-    opts = {
-        'tol': 1e-6,
-        'max_iter': 1000,
-        'rho': 1.1,
-        'mu': 1e-4,
-        'max_mu': 1e10,
-        'DEBUG': 0
-    }
-
-    # Construct the l1_admm problem
-    X, Z, U = construct_l1_admm(A, B, opts)
-
-    # ADMM learning process
-    Z, loss, iter_, losses = admm_learning(A, B, X, Z, U, opts)
-
-    # Evaluate the result
-    final_loss = evaluate_result(Z, A, B)
-    print(iter_, final_loss)
-
-    return -iter_
+    # Options for the l1 minimization
+    opts = instances
+    # Perform l1 minimization
+    X2, obj, err, iter = l1(A, B, opts)
+    print(f'Iterations: {iter}, Objective: {obj}, Error: {err}')
+    return -iter
 '''
 
 # It should be noted that the if __name__ == '__main__' is required.
@@ -254,15 +247,14 @@ def evaluate():
 if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
-
-    bin_packing_or3 = {'OR3': bin_packing_utils.datasets['OR3']}
-    global_max_sample_num = 10  # if it is set to None, funsearch will execute an endless loop
+    admm_l1_config = admm_utils.datasets['l1']
+    global_max_sample_num = 100  # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
-        inputs=bin_packing_or3,
+        inputs=admm_l1_config,
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/funsearch_llm_api',
+        log_dir='logs/funsearch_admm_l1',
         temperature=0
     )

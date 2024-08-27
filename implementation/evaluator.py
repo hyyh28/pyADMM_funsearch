@@ -184,7 +184,7 @@ class Evaluator:
             function_to_evolve: str,  # RZ: refers to the name of the function to evolve (e.g., 'priority')
             function_to_run: str,  # RZ: refers to the name of the function to run (e.g., 'evaluate')
             inputs: Sequence[Any],  # RZ: I guess this refers to the evaluate instance
-            timeout_seconds: int = 30,
+            timeout_seconds: int = 60,
             sandbox_class: Type[Sandbox] = Sandbox
     ):
         self._database = database
@@ -298,6 +298,8 @@ class Evaluator:
         # 将新代码写回原文件或新文件
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(new_code)
+
+
     def analyse(
             self,
             sample: str,
