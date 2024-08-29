@@ -248,7 +248,8 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     admm_l1_config = admm_utils.datasets['l1']
-    global_max_sample_num = 100  # if it is set to None, funsearch will execute an endless loop
+    global_max_sample_num = 100
+    # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
         inputs=admm_l1_config,
