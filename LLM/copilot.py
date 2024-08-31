@@ -1,3 +1,4 @@
+from LLM.gpt import DeepSeekClient
 class LLMCopilot:
     def __init__(self, client: DeepSeekClient):
         self.client = client
