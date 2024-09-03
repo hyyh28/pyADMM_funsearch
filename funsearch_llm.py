@@ -17,8 +17,7 @@ class LLMAPI(sampler.LLM):
 
     def __init__(self, samples_per_prompt: int):
         super().__init__(samples_per_prompt)
-        additional_prompt = ('Please modify the ADMM optimizer in the provided l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter mu should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed or simply scaled by rho. The modification should allow for a more adaptive penalty parameter that could, for example, increase or decrease depending on the convergence speed or error metrics. Ensure that the updated mu is used correctly in the updates for X, Z, Y1, and Y2. Additionally, if possible, provide a brief explanation of the changes made and how they improve the optimization process.'
-                             'Be creative and you can insert multiple if-else and for-loop in the code logic.'
+        additional_prompt = ('Please modify the ADMM optimizer in the provided l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter rho should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed. Ensure that the updated rho is used correctly in the updates for X, Z, Y1, and Y2.'
                              'Only output the Python code, no descriptions.')
         self._additional_prompt = additional_prompt
 
@@ -176,7 +175,7 @@ def l1(A, B, opts):
     # Set default options
     tol = opts.get('tol', 1e-8)
     max_iter = opts.get('max_iter', 500)
-    rho = opts.get('rho', 1.1)
+    rho = opts.get('rho', 1)
     mu = opts.get('mu', 1e-4)
     max_mu = opts.get('max_mu', 1e10)
     DEBUG = opts.get('DEBUG', 0)
@@ -256,6 +255,6 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/funsearch_admm_l1',
+        log_dir='logs/funsearch_admm_l1_9_1',
         temperature=0
     )
