@@ -48,7 +48,7 @@ class LLMAPI(sampler.LLM):
                     "presence_penalty": 0,
                     "stop": None,
                     "stream": False,
-                    "temperature": 1,
+                    "temperature": 0,
                     "top_p": 1,
                     "logprobs": False,
                     "top_logprobs": None
@@ -175,7 +175,7 @@ def l1(A, B, opts):
     # Set default options
     tol = opts.get('tol', 1e-8)
     max_iter = opts.get('max_iter', 500)
-    rho = opts.get('rho', 1)
+    rho = opts.get('rho', 1.1)
     mu = opts.get('mu', 1e-4)
     max_mu = opts.get('max_mu', 1e10)
     DEBUG = opts.get('DEBUG', 0)
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     admm_l1_config = admm_utils.datasets['l1']
-    global_max_sample_num = 100
+    global_max_sample_num = 10
     # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
@@ -255,6 +255,6 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/funsearch_admm_l1_9_1',
+        log_dir='logs/sparse_models/l1/funsearch_l1',
         temperature=0
     )

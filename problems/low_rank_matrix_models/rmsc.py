@@ -102,5 +102,7 @@ opts = {'tol': 1e-6, 'max_iter': 1000, 'rho': 1.2, 'mu': 1e-3, 'max_mu': 1e10, '
 
 L, S, obj, err, iter = rmsc(X, lambda_val, opts)
 
-print('Error:', err)
-print('Iterations:', iter)
+
+print(f'Objective: {obj}')
+print(f'Error: {err}')
+print(f'Iterations: {iter}')

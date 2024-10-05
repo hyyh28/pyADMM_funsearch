@@ -1,11 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 def prox_l1(b, lambd):
     # The proximal operator of the l1 norm
     return np.maximum(0, b - lambd) + np.minimum(0, b + lambd)
-
 
 def l1(A, B, opts):
     # Set default options
@@ -35,8 +33,10 @@ def l1(A, B, opts):
         X = prox_l1(Z - Y2 / mu, 1 / mu)
         # update Z
         Z = invAtAI @ (-A.T @ Y1 / mu + AtB + Y2 / mu + X)
+        
         dY1 = A @ Z - B
         dY2 = X - Z
+        
         chgX = np.max(np.abs(Xk - X))
         chgZ = np.max(np.abs(Zk - Z))
         chg = max([chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2))])
@@ -90,7 +90,7 @@ datasets['l1'] = {'opts': {
     'max_mu': 1e10,
     'DEBUG': 1
 },
-'d': 100,
+'d': 10,
 'na': 200,
 'nb': 100}
 

@@ -169,3 +169,4 @@ Z, E, obj, err, iter = mlap(X, lambda_, alpha, opts)
 
 print(f'Error: {err}')
 print(f'Iterations: {iter}')
+print(f'Objective: {obj}')

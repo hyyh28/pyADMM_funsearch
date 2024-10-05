@@ -108,4 +108,5 @@ opts['DEBUG'] = 1
 L, S, obj, err, iter = igc(X, C, lambda_, opts)
 
 print(f'Error: {err}')
+print(f'Objective: {obj}')
 print(f'Iterations: {iter}')

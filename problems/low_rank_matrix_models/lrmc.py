@@ -188,11 +188,15 @@ M[omega] = X[omega]
 Xhat, obj, err, iter = lrmc(M, omega, opts)
 rel_err_X = np.linalg.norm(Xhat - X, 'fro') / np.linalg.norm(X, 'fro')
 
-print(f'rel_err_X: {rel_err_X}')
+#print(f'rel_err_X: {rel_err_X}')
 
-# Regularized LRMC
-E = np.random.randn(n1, n2) / 100
-M = X + E
-lambda_ = 0.1
+print(f'Objective: {obj}')
+print(f'Error: {err}')
+print(f'Iterations: {iter}')
 
-Xhat, Ehat, obj, err, iter = lrmcR(M, omega, lambda_, opts)
+# # Regularized LRMC
+# E = np.random.randn(n1, n2) / 100
+# M = X + E
+# lambda_ = 0.1
+
+# Xhat, Ehat, obj, err, iter = lrmcR(M, omega, lambda_, opts)
