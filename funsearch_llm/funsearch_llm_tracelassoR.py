@@ -294,6 +294,6 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/sparse_models/tracelassoR/funsearch_tracelassoR',
+        log_dir='logs/sparse_models/tracelassoR/funsearch_tracelassoR_100',
         temperature=0
     )
