@@ -77,7 +77,7 @@ opts = {
     'rho': 1.1,
     'mu': 1e-4,
     'max_mu': 1e10,
-    'DEBUG': 0
+    'DEBUG': 1
 }
 
 # Regularization parameter for elastic net
