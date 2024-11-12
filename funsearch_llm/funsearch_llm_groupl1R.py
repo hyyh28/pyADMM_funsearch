@@ -312,6 +312,6 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/sparse_models/groupl1R/funsearch_groupl1R',
+        log_dir='logs/sparse_models/groupl1R/funsearch_groupl1R_100',
         temperature=0
     )

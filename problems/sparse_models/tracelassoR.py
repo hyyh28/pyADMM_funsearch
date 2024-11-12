@@ -90,7 +90,7 @@ def comp_loss(E, loss):
         raise ValueError('Loss function not supported')
 
 # Generate toy data
-d = 10
+d = 5000
 na = 200
 nb = 100
 
@@ -117,6 +117,7 @@ lambda_ = 0.1
 x, e, obj, err, iter = tracelassoR(A, b, lambda_, opts)
 
 # Plot the solution vector x
-plt.stem(x)
-plt.title('Regularized Trace Lasso Result')
-plt.show()
+print(f"Final Iteration: {iter}, Objective: {obj}, Error: {err}")
+# plt.stem(x)
+# plt.title('Regularized Trace Lasso Result')
+# plt.show()

@@ -248,7 +248,7 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     admm_elasticnet_config = admm_utils.datasets['elasticnet']
-    global_max_sample_num = 100
+    global_max_sample_num = 10
     # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
@@ -256,6 +256,6 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='logs/sparse_models/elasticnet/funsearch_elasticnet',
+        log_dir='logs/sparse_models/elasticnet/funsearch_elasticnet_100',
         temperature=0
     )

@@ -57,7 +57,7 @@ def elasticnet(A, B, lambda_, opts):
     return X, obj, err, iter
 
 # Generate toy data
-d = 10
+d = 5000
 na = 200
 nb = 100
 

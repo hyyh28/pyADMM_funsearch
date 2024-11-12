@@ -105,7 +105,7 @@ opts = {
 }
 
 n1, n2 = 100, 200
-r = 10
+r = 1000
 L = np.random.randn(n1, r) @ np.random.randn(r, n2)
 
 p = 0.1

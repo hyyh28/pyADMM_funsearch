@@ -17,7 +17,7 @@ class LLMAPI(sampler.LLM):
 
     def __init__(self, samples_per_prompt: int):
         super().__init__(samples_per_prompt)
-        additional_prompt = ('Please modify the ADMM optimizer in the provided regularized l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter rho should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed. Ensure that the updated rho is used correctly in the updates for X, Z, Y1, and Y2.'
+        additional_prompt = ('Please modify the ADMM optimizer in the provided regularized l1 function to incorporate an unfixed penalty parameter. Specifically, the penalty parameter rho should be adjusted dynamically during each iteration based on the current optimization state, rather than being fixed. Ensure that the updated rho is used correctly in the updates for X, Z, Y1, and Y2. And remember donot modify other part in this code'
                              'Only output the Python code, no descriptions.')
         self._additional_prompt = additional_prompt
 
