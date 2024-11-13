@@ -102,19 +102,19 @@ def evaluate(instances: dict) -> float:
     print(f'Iterations: {iter}, Objective: {obj}, Error: {err}')
     return -iter
 
-datasets = {
-    'l1': {'opts': {
-        'tol': 1e-6,
-        'max_iter': 1000,
-        'rho': 1.1,
-        'mu': 1e-4,
-        'max_mu': 1e10,
-        'DEBUG': 1,
-        'anderson_m': 5
-    },
-    'd': 10,
-    'na': 200,
-    'nb': 100}
-}
+    datasets = {
+        'l1': {'opts': {
+            'tol': 1e-6,
+            'max_iter': 1000,
+            'rho': 1.1,
+            'mu': 1e-4,
+            'max_mu': 1e10,
+            'DEBUG': 1,
+            'anderson_m': 5
+        },
+        'd': 10,
+        'na': 200,
+        'nb': 100}
+    }
 
 evaluate(datasets['l1'])
