@@ -19,7 +19,7 @@ def write_function_to_python(json_data, output_file):
 
 # 主函数
 def main():
-    input_json = '/home/ubuntu/pyADMM_funsearch/logs/sparse_models/trace_lasso/funsearch_trace_lasso/samples/samples_6.json'  # 输入的JSON文件路径
+    input_json = '/home/ubuntu/pyADMM_funsearch/logs/sparse_models/groupl1R/funsearch_groupl1R/samples/samples_10.json'  # 输入的JSON文件路径
     output_py = 'output_function.py'  # 输出的Python文件路径
 
     # 读取JSON

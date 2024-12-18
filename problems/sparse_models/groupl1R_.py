@@ -1,31 +1,30 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def update_penalty(dY1, dY2, Y1, Y2, mu, rho, max_mu):
-    Y1 = Y1 + mu * dY1
-    Y2 = Y2 + mu * dY2
-    mu = 1
-    return Y1, Y2, mu, rho
-
-def prox_elasticnet(b, lambda1, lambda2):
+def prox_gl1(b, G, lambda_val):
     """
-    The proximal operator of the elastic net
+    The proximal operator of the group l1 norm
 
-    min_x lambda1 * ||x||_1 + 0.5 * lambda2 * ||x||_2^2 + 0.5 * ||x - b||_2^2
+    min_x lambda * sum_{g in G} ||x_g||_2 + 0.5 * ||x - b||_2^2
 
     Parameters:
         b : numpy.ndarray
-            Input vector or matrix
-        lambda1 : float
-            L1 regularization parameter
-        lambda2 : float
-            L2 regularization parameter
+            Input vector
+        G : list of list
+            A partition of indices
+        lambda_val : float
+            Regularization parameter
 
     Returns:
         x : numpy.ndarray
-            Output vector or matrix after applying the proximal operator
+            Output vector after applying the proximal operator
     """
-    return (np.maximum(0, b - lambda1) + np.minimum(0, b + lambda1)) / (lambda2 + 1)
+    x = np.zeros_like(b)
+    for g in G:
+        nxg = np.linalg.norm(b[g])
+        if nxg > lambda_val:
+            x[g] = b[g] * (1 - lambda_val / nxg)
+    return x
 
 def prox_l1(b, lambda_val):
     """
@@ -68,48 +67,30 @@ def comp_loss(E, loss):
     else:
         raise ValueError('Unsupported loss function')
 
-def elasticnetR(A, B, lambda1, lambda2, opts):
+def compute_groupl1(X, G):
     """
-    Solve the elastic net regularized minimization problem by ADMM
-
-    min_{X,E} loss(E) + lambda1 * ||X||_1 + lambda2 * ||X||_F^2, s.t. AX + E = B
-    loss(E) = ||E||_1 or 0.5 * ||E||_F^2
+    Compute the group l1 norm for a matrix X
 
     Parameters:
-        A : numpy.ndarray
-            d * na matrix
-        B : numpy.ndarray
-            d * nb matrix
-        lambda1 : float
-            L1 regularization parameter
-        lambda2 : float
-            L2 regularization parameter
-        opts : dict
-            Dictionary containing optimization options:
-            loss       : 'l1' (default): loss(E) = ||E||_1 
-                         'l2': loss(E) = 0.5 * ||E||_F^2
-            tol        : termination tolerance
-            max_iter   : maximum number of iterations
-            mu         : stepsize for dual variable updating in ADMM
-            max_mu     : maximum stepsize
-            rho        : rho>=1, ratio used to increase mu
-            DEBUG      : 0 or 1 for printing debug info
+        X : numpy.ndarray
+            Input matrix
+        G : list of list
+            A partition of indices
 
     Returns:
-        X : numpy.ndarray
-            na * nb matrix
-        E : numpy.ndarray
-            d * nb matrix
         obj : float
-            Objective function value
-        err : float
-            Residual
-        iter : int
-            Number of iterations
+            Group l1 norm of X
     """
-    # Set default options
-    tol = opts.get('tol', 1e-8)
-    max_iter = opts.get('max_iter', 500)
+    obj = 0
+    for i in range(X.shape[1]):
+        x = X[:, i]
+        for g in G:
+            obj += np.linalg.norm(x[g])
+    return obj
+
+def groupl1R(A, B, G, lambd, opts):
+    tol = opts.get('tol', 1e-6)
+    max_iter = opts.get('max_iter', 1000)
     rho = opts.get('rho', 1.1)
     mu = opts.get('mu', 1e-4)
     max_mu = opts.get('max_mu', 1e10)
@@ -131,8 +112,10 @@ def elasticnetR(A, B, lambda1, lambda2, opts):
 
     for iter in range(1, max_iter + 1):
         Xk, Ek, Zk = X.copy(), E.copy(), Z.copy()
-        # First super block {X,E}
-        X = prox_elasticnet(Z - Y2 / mu, lambda1 / mu, lambda2 / mu)
+
+        # First super block {X, E}
+        for i in range(nb):
+            X[:, i] = prox_gl1(Z[:, i] - Y2[:, i] / mu, G, 1 / mu)
         if loss == 'l1':
             E = prox_l1(B - A @ Z - Y1 / mu, 1 / mu)
         elif loss == 'l2':
@@ -152,18 +135,31 @@ def elasticnetR(A, B, lambda1, lambda2, opts):
         chg = max(chgX, chgE, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2)))
 
         if DEBUG and (iter == 1 or iter % 10 == 0):
-            obj = comp_loss(E, loss) + lambda1 * np.linalg.norm(X, 1) + lambda2 * np.linalg.norm(X, 'fro') ** 2
+            obj = comp_loss(E, loss) + lambd * compute_groupl1(X, G)
             err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
-            print(f"iter {iter}, mu={mu}, obj={obj}, err={err}")
+            print(f"iter {iter}, mu={mu}, rho={rho}, obj={obj}, err={err}")
 
         if chg < tol:
             break
 
-        Y1, Y2, mu, rho = update_penalty(dY1, dY2, Y1, Y2, mu, rho, max_mu)
+        # Update rho dynamically
+        rho_update_factor = 1.01
+        if np.linalg.norm(dY1, 'fro') > 10 * np.linalg.norm(dY2, 'fro'):
+            rho *= rho_update_factor
+        elif np.linalg.norm(dY2, 'fro') > 10 * np.linalg.norm(dY1, 'fro'):
+            rho /= rho_update_factor
 
-    obj = comp_loss(E, loss) + lambda1 * np.linalg.norm(X, 1) + lambda2 * np.linalg.norm(X, 'fro') ** 2
+        # Update dual variables
+        Y1 += mu * dY1
+        Y2 += mu * dY2
+        mu = min(rho * mu, max_mu)
+
+    obj = comp_loss(E, loss) + lambd * compute_groupl1(X, G)
     err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
+    
     return X, E, obj, err, iter
+
+
 
 # 设置参数
 opts = {
@@ -172,11 +168,11 @@ opts = {
     'mu': 1e-4,
     'max_mu': 1e10,
     'rho': 1.1,
-    'DEBUG': 0,
+    'DEBUG': 1,
     'loss': 'l1'
 }
 
-# 生成toy数据
+# 生成玩具数据
 d = 10
 na = 200
 nb = 100
@@ -185,11 +181,16 @@ A = np.random.randn(d, na)
 X_true = np.random.randn(na, nb)
 B = A @ X_true
 
-# regularized elastic net
-lambda1 = 10
-lambda2 = 10
-X, E, obj, err, iter = elasticnetR(A, B, lambda1, lambda2, opts)
+# 创建组索引
+g_num = 5
+g_len = round(na / g_num)
+G = [list(range((i - 1) * g_len, i * g_len)) for i in range(1, g_num)]
+G.append(list(range((g_num - 1) * g_len, na)))
+
+# regularized group Lasso
+lambda_val = 1
+X, E, obj, err, iter = groupl1R(A, B, G, lambda_val, opts)
 print(f"Final Iteration: {iter}, Objective: {obj}, Error: {err}")
 plt.stem(X[:, 0])
-plt.title('Regularized Elastic Net Result')
+plt.title('Regularized Group Lasso Result')
 plt.show()

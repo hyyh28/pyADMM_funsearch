@@ -39,7 +39,6 @@ def groupl1R(A, B, G, lambd, opts):
     rho = opts.get('rho', 1.1)
     mu = opts.get('mu', 1e-4)
     max_mu = opts.get('max_mu', 1e10)
-    min_mu = opts.get('min_mu', 1e-10)
     DEBUG = opts.get('DEBUG', 0)
     loss = opts.get('loss', 'l1')
 
@@ -59,6 +58,7 @@ def groupl1R(A, B, G, lambd, opts):
     for iter in range(1, max_iter + 1):
         Xk, Ek, Zk = X.copy(), E.copy(), Z.copy()
 
+        # First super block {X, E}
         for i in range(nb):
             X[:, i] = prox_gl1(Z[:, i] - Y2[:, i] / mu, G, 1 / mu)
         if loss == 'l1':
@@ -68,8 +68,10 @@ def groupl1R(A, B, G, lambd, opts):
         else:
             raise ValueError('Unsupported loss function')
 
+        # Second super block {Z}
         Z = invAtAI @ (-A.T @ (Y1 / mu + E) + AtB + Y2 / mu + X)
 
+        # Compute residuals and errors
         dY1 = A @ Z + E - B
         dY2 = X - Z
         chgX = np.max(np.abs(Xk - X))
@@ -85,21 +87,20 @@ def groupl1R(A, B, G, lambd, opts):
         if chg < tol:
             break
 
-        rho_update_factor = 1.01
-        if np.linalg.norm(dY1, 'fro') > 10 * np.linalg.norm(dY2, 'fro'):
-            rho *= rho_update_factor
-        elif np.linalg.norm(dY2, 'fro') > 10 * np.linalg.norm(dY1, 'fro'):
-            rho /= rho_update_factor
+        # Update penalty parameter rho dynamically
+        rho_update_factor = 1.01  # Example factor for updating rho
+        rho = min(rho * rho_update_factor, max_mu)
 
+        # Update dual variables
         Y1 += mu * dY1
         Y2 += mu * dY2
-        mu = max(min(rho * mu, max_mu), min_mu)
-        logging.info(f"mu value: {mu}, rho value: {rho}")
+        mu = min(rho * mu, max_mu)
 
     obj = comp_loss(E, loss) + lambd * compute_groupl1(X, G)
     err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
     
     return X, E, obj, err, iter
+
 
 def evaluate(opts, lambd, d=10, na=200, nb=100, g_num=5):
     # Generate random problem instance
@@ -133,7 +134,7 @@ opts = {
     'max_mu': 1e10,
     'min_mu': 1e-10,
     'rho': 1.1,
-    'DEBUG': 0,
+    'DEBUG': 1,
     'loss': 'l1'
 }
 
