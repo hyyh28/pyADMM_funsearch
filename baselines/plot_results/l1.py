@@ -1,9 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
+plt.rcParams["font.family"] = "Times New Roman"
+
 
 def prox_l1(b, lambd):
-    # The proximal operator of the l1 norm
-    return np.maximum(0, b - lambd) + np.minimum(0, b + lambd)
+    return np.sign(b) * np.maximum(np.abs(b) - lambd, 0)
 
 def augmented_lagrangian(A, B, X, Z, Y1, Y2, mu):
     return np.linalg.norm(X.ravel(), 1) + np.sum(Y1 * (A @ Z - B)) + np.sum(Y2 * (X - Z)) + (mu / 2) * (np.linalg.norm(A @ Z - B, 'fro')**2 + np.linalg.norm(X - Z, 'fro')**2)
@@ -12,7 +14,7 @@ def augmented_lagrangian(A, B, X, Z, Y1, Y2, mu):
 def update_penalty(dY1, dY2, Y1, Y2, mu, rho, max_mu, iter_count, stage_count):
     Y1 = Y1 + mu * dY1
     Y2 = Y2 + mu * dY2
-    
+    mu = min(rho * mu, max_mu)
     # 自适应惩罚参数更新，根据当前阶段数动态调整
     if iter_count >= stage_count:
         mu = min(rho * mu, max_mu)  # 增大惩罚参数
@@ -44,7 +46,9 @@ def l1_accelerated(A, B, opts):
 
     prev_aug_lagrangian = augmented_lagrangian(A, B, X, Z, Y1, Y2, mu)
     objective_list = []
-    errors_list = []
+    primal_resid_list = []
+    data_fitting_term_list = []
+    dual_resid_term_list = []
 
     for iter in range(1, max_iter + 1):
         Xk = X.copy()
@@ -80,13 +84,23 @@ def l1_accelerated(A, B, opts):
         chgZ = np.max(np.abs(Zk - Z))
         chg = max(chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2)))
 
-        obj = np.linalg.norm(X.ravel(), 1)
-        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
-        
+        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2)
+        dual_err = np.sqrt(np.linalg.norm(dY2, 'fro') ** 2)
+        data_fitting_term = 0.5 * np.linalg.norm(A @ X - B, 'fro') ** 2
+        regularization_term = np.linalg.norm(X.ravel(), 1)
+        objective_function = data_fitting_term + mu * (np.sum(Y1 * err) + np.sum(Y2 * dual_err)) + regularization_term
+        # 计算残差
+        primal_resid = np.linalg.norm(X - Z, 'fro')
+        dual_resid = np.linalg.norm(rho * (Z - Zk), 'fro') if iter > 0 else 0
+
+
         if DEBUG and (iter == 1 or iter % 10 == 0):
-            print(f'iter {iter}, mu={mu}, obj={obj}, err={err}')
-        errors_list.append(err)
-        objective_list.append(obj)
+            print(f'iter {iter}, obj={objective_function}, err={err}')
+            print(f'\tData Fitting Term: {data_fitting_term}, Regularization Term: {regularization_term}')
+        objective_list.append(objective_function)
+        primal_resid_list.append(primal_resid)
+        dual_resid_term_list.append(dual_resid)
+        data_fitting_term_list.append(data_fitting_term)
         
         if chg < tol:
             break
@@ -101,7 +115,7 @@ def l1_accelerated(A, B, opts):
         else:
             mu /= rho
 
-    return errors_list, objective_list
+    return objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list
 
 def l1_admm(A, B, opts):
     tol = opts.get('tol', 1e-8)
@@ -126,7 +140,9 @@ def l1_admm(A, B, opts):
 
     iter_count = 0  # 当前阶段的迭代计数器
     objective_list = []
-    errors_list = []
+    primal_resid_list = []
+    data_fitting_term_list = []
+    dual_resid_term_list = []
 
     for iter in range(1, max_iter + 1):
         Xk = X.copy()
@@ -144,14 +160,23 @@ def l1_admm(A, B, opts):
         chgX = np.max(np.abs(Xk - X))
         chgZ = np.max(np.abs(Zk - Z))
         chg = max([chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2))])
-        obj = np.linalg.norm(X.ravel(), 1)
-        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
+        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2)
+        dual_err = np.sqrt(np.linalg.norm(dY2, 'fro') ** 2)
+        data_fitting_term = 0.5 * np.linalg.norm(A @ X - B, 'fro') ** 2
+        regularization_term = np.linalg.norm(X.ravel(), 1)
+        objective_function = data_fitting_term + mu * (np.sum(Y1 * err) + np.sum(Y2 * dual_err)) + regularization_term
+        # 计算残差
+        primal_resid = np.linalg.norm(X - Z, 'fro')
+        dual_resid = np.linalg.norm(rho * (Z - Zk), 'fro') if iter > 0 else 0
 
         if DEBUG and (iter == 1 or iter % 10 == 0):
-            print(f'iter {iter}, mu={mu}, obj={obj}, err={err}')
-        
-        errors_list.append(err)
-        objective_list.append(obj)
+            print(f'iter {iter}, obj={objective_function}, err={err}')
+            print(f'\tData Fitting Term: {data_fitting_term}, Regularization Term: {regularization_term}')
+
+        objective_list.append(objective_function)
+        primal_resid_list.append(primal_resid)
+        dual_resid_term_list.append(dual_resid)
+        data_fitting_term_list.append(data_fitting_term)
 
         if chg < tol:
             break
@@ -159,7 +184,7 @@ def l1_admm(A, B, opts):
         # 自适应更新惩罚参数
         Y1, Y2, mu, rho, iter_count = update_penalty(dY1, dY2, Y1, Y2, mu, rho, max_mu, iter_count, stage_count)
 
-    return errors_list, objective_list
+    return objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list
 
 def l1_fast_admm(A, B, opts):
     # Set default options
@@ -180,7 +205,9 @@ def l1_fast_admm(A, B, opts):
     I = np.eye(na)
     invAtA_I = np.linalg.inv(AtA + I)  # 预计算矩阵逆
     objective_list = []
-    errors_list = []
+    primal_resid_list = []
+    data_fitting_term_list = []
+    dual_resid_term_list = []
 
     for iter in range(max_iter):
         # x-update: 更新 X
@@ -201,12 +228,18 @@ def l1_fast_admm(A, B, opts):
         dual_resid = np.linalg.norm(rho * (Z - Z_prev), 'fro') if iter > 0 else 0
         err = np.sqrt(primal_resid ** 2 + dual_resid ** 2)
         chg = max([chgX, chgZ, np.max(np.abs(primal_resid)), np.max(np.abs(dual_resid))])
-        obj = np.linalg.norm(X.ravel(), 1)
 
-        if DEBUG and (iter == 0 or (iter + 1) % 10 == 0):
-            print(f'iter {iter+1}, obj={obj}, err={err}, primal_resid={primal_resid}, dual_resid={dual_resid}')
-        errors_list.append(err)
-        objective_list.append(obj)
+        data_fitting_term = 0.5 * np.linalg.norm(A @ X - B, 'fro') ** 2
+        regularization_term = np.linalg.norm(X.ravel(), 1)
+        objective_function = regularization_term
+
+        if DEBUG and (iter == 1 or iter % 10 == 0):
+            print(f'iter {iter}, obj={objective_function}, err={err}')
+            print(f'\tData Fitting Term: {data_fitting_term}, Regularization Term: {regularization_term}')
+        objective_list.append(objective_function)
+        primal_resid_list.append(primal_resid)
+        dual_resid_term_list.append(dual_resid)
+        data_fitting_term_list.append(data_fitting_term)
 
         # 检查收敛条件
         if chg < tol:
@@ -215,7 +248,7 @@ def l1_fast_admm(A, B, opts):
         Z_prev = Z.copy()  # 保存上一次的 Z 用于计算双重残差
 
     obj = np.linalg.norm(X.ravel(), 1)
-    return errors_list, objective_list
+    return objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list
 
 def l1_autoAdmm(A, B, opts):
     tol = opts.get('tol', 1e-8)
@@ -237,7 +270,9 @@ def l1_autoAdmm(A, B, opts):
     I = np.eye(na)
     invAtAI = np.linalg.inv(A.T @ A + I) @ I
     objective_list = []
-    errors_list = []
+    primal_resid_list = []
+    data_fitting_term_list = []
+    dual_resid_term_list = []
 
     for iter in range(1, max_iter + 1):
         Xk = X.copy()
@@ -251,13 +286,22 @@ def l1_autoAdmm(A, B, opts):
         chgX = np.max(np.abs(Xk - X))
         chgZ = np.max(np.abs(Zk - Z))
         chg = max([chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2))])
-        obj = np.linalg.norm(X.ravel(), 1)
-        err = np.sqrt(np.linalg.norm(dY1, 'fro')**2 + np.linalg.norm(dY2, 'fro')**2)
-        
+        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2)
+        dual_err = np.sqrt(np.linalg.norm(dY2, 'fro') ** 2)
+        data_fitting_term = 0.5 * np.linalg.norm(A @ X - B, 'fro') ** 2
+        regularization_term = np.linalg.norm(X.ravel(), 1)
+        objective_function = regularization_term
+        # 计算残差
+        primal_resid = np.linalg.norm(X - Z, 'fro')
+        dual_resid = np.linalg.norm(rho * (Z - Zk), 'fro') if iter > 0 else 0
+
         if DEBUG and (iter == 1 or iter % 10 == 0):
-            print(f'iter {iter}, mu={mu}, obj={obj}, err={err}')
-        errors_list.append(err)
-        objective_list.append(obj)
+            print(f'iter {iter}, mu={mu}, obj={objective_function}, err={err}')
+            print(f'\tData Fitting Term: {data_fitting_term}, Regularization Term: {regularization_term}')
+        objective_list.append(objective_function)
+        primal_resid_list.append(primal_resid)
+        dual_resid_term_list.append(dual_resid)
+        data_fitting_term_list.append(data_fitting_term)
         
         if chg < tol:
             break
@@ -272,7 +316,11 @@ def l1_autoAdmm(A, B, opts):
         Y2 = Y2 + mu * dY2
         mu = min(rho * mu, max_mu)
     
-    return errors_list, objective_list
+    return objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list
+
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     # Generate toy data
@@ -283,7 +331,6 @@ if __name__ == "__main__":
     A = np.random.randn(d, na)
     X = np.random.randn(na, nb)
     B = A @ X
-    b = B[:, 0]
 
     # Options for the elastic net minimization
     opts = {
@@ -294,37 +341,84 @@ if __name__ == "__main__":
         'max_mu': 1e10,
         'DEBUG': 1
     }
-    
 
     # Regularization parameter for elastic net
     lambda_ = 0.01
-    objective_list_map = {"Accelerated": [], "ADMM": [], "Fast ADMM": [], "AutoADMM": []}
-    line_styles = {"Accelerated": "-", "ADMM": "--", "Fast ADMM": "-.", "AutoADMM": ":"}  # Different line styles
-    markers = {"Accelerated": "o", "ADMM": "s", "Fast ADMM": "^", "AutoADMM": "D"}  # Different markers
 
-    for key in objective_list_map.keys():
+    methods = ["Accelerated", "M-ADMM", "AutoADMM", "Fast ADMM"]
+    line_styles = {"Accelerated": "-", "M-ADMM": "--", "Fast ADMM": "-.", "AutoADMM": ":"}  # Different line styles
+    markers = {"Accelerated": "o", "M-ADMM": "s", "Fast ADMM": "^", "AutoADMM": "D"}  # Different markers
+
+    # Initialize dictionaries to store lists of objective values, data fitting terms, regularization terms, and errors
+    objective_list_map = {method: [] for method in methods}
+    data_fitting_term_map = {method: [] for method in methods}
+    primal_resid_map = {method: [] for method in methods}
+    dual_resid_term_map = {method: [] for method in methods}
+
+    # Run each method and collect results
+    for key in methods:
         if key == "Accelerated":
-            error_list, objective_list = l1_accelerated(A, B, opts)
-        elif key == "ADMM":
-            error_list, objective_list = l1_admm(A, B, opts)
-        elif key == "Fast ADMM":
-            error_list, objective_list = l1_fast_admm(A, B, opts)
+            objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list = l1_accelerated(A, B, opts)
+        elif key == "M-ADMM":
+            objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list = l1_admm(A, B, opts)
         else:
-            error_list, objective_list = l1_autoAdmm(A, B, opts)
+            objective_list, data_fitting_term_list, primal_resid_list, dual_resid_term_list = l1_autoAdmm(A, B, opts)
 
-        if len(objective_list) < 1000:
-            objective_list.extend([objective_list[-1]] * (1000 - len(objective_list)))
-        objective_list_map[key] = objective_list
+        # Ensure all lists have the same length (extend with last value if necessary)
+        max_length = opts['max_iter']
+        objective_list_map[key] = objective_list + [objective_list[-1]] * (max_length - len(objective_list))
+        data_fitting_term_map[key] = data_fitting_term_list + [data_fitting_term_list[-1]] * (
+                    max_length - len(data_fitting_term_list))
+        primal_resid_map[key] = primal_resid_list + [primal_resid_list[-1]] * (
+                    max_length - len(primal_resid_list))
+        dual_resid_term_map[key] = dual_resid_term_list + [dual_resid_term_list[-1]] * (max_length - len(dual_resid_term_list))
 
-    # Plotting the objective lists with different line styles and markers
-    plt.figure(figsize=(10, 6))
-    for key, objective_list in objective_list_map.items():
-        plt.plot(objective_list, label=key)
+    # Plotting the results with different subplots for each metric
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle('Convergence Metrics for Different Methods for L1', fontsize=16)
 
-    plt.xlabel('Iteration')
-    plt.ylabel('Objective Value')
-    plt.title('Objective Value Convergence for Different Methods')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig("./l1.pdf")
+    # Objective Values
+    ax = axes[0, 0]
+    for key in methods:
+        ax.plot(objective_list_map[key], label=key, linestyle=line_styles[key], marker=markers[key], markevery=100)
+    ax.set_title('Objective Function')
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Value')
+    ax.legend()
+    ax.grid(True, which="both", ls="--")
 
+    # Data Fitting Term
+    ax = axes[0, 1]
+    for key in methods:
+        ax.plot(data_fitting_term_map[key], label=key, linestyle=line_styles[key], marker=markers[key], markevery=100)
+    ax.set_title('Data Fitting Errors')
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Value')
+    ax.legend()
+    ax.grid(True, which="both", ls="--")
+
+    # Regularization Term
+    ax = axes[1, 0]
+    for key in methods:
+        ax.plot(primal_resid_map[key], label=key, linestyle=line_styles[key], marker=markers[key], markevery=100)
+    ax.set_title('Primal Resid')
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Value')
+    ax.set_yscale('log')  # Set y-axis to log scale
+    ax.legend()
+    ax.grid(True, which="both", ls="--")  # Grid for both major and minor ticks
+
+    # Error
+    ax = axes[1, 1]
+    for key in methods:
+        ax.plot(dual_resid_term_map[key], label=key, linestyle=line_styles[key], marker=markers[key], markevery=100)
+    ax.set_title('Dual Residuals')
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Value')
+    ax.set_yscale('log')
+    ax.legend()
+    ax.grid(True, which="both", ls="--")
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig("./l1_convergence.pdf")
+    plt.show()

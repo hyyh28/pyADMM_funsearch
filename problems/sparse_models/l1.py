@@ -2,8 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def prox_l1(b, lambd):
-    # The proximal operator of the l1 norm
-    return np.maximum(0, b - lambd) + np.minimum(0, b + lambd)
+    return np.sign(b) * np.maximum(np.abs(b) - lambd, 0)
 
 def l1(A, B, opts):
     # Set default options
@@ -41,10 +40,14 @@ def l1(A, B, opts):
         chgZ = np.max(np.abs(Zk - Z))
         chg = max([chgX, chgZ, np.max(np.abs(dY1)), np.max(np.abs(dY2))])
 
+        data_fitting_term = 0.5 * np.linalg.norm(A @ X - B, 'fro') ** 2
+        regularization_term = np.linalg.norm(X.ravel(), 1)
+        objective_function = data_fitting_term + regularization_term
+        err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
+
         if DEBUG and (iter == 1 or iter % 10 == 0):
-            obj = np.linalg.norm(X.ravel(), 1)
-            err = np.sqrt(np.linalg.norm(dY1, 'fro') ** 2 + np.linalg.norm(dY2, 'fro') ** 2)
-            print(f'iter {iter}, mu={mu}, obj={obj}, err={err}')
+            print(f'iter {iter}, mu={mu}, obj={objective_function}, err={err}')
+            print(f'\tData Fitting Term: {data_fitting_term}, Regularization Term: {regularization_term}')
 
         if chg < tol:
             break
@@ -90,7 +93,7 @@ datasets['l1'] = {'opts': {
     'max_mu': 1e10,
     'DEBUG': 1
 },
-'d': 5000,
+'d': 100,
 'na': 200,
 'nb': 100}
 
