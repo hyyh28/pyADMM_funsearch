@@ -42,7 +42,7 @@ class LLMAPI(sampler.LLM):
                             "role": "user"
                         }
                     ],
-                    "model": "deepseek-coder",
+                    "model": "deepseek-chat",
                     "frequency_penalty": 0,
                     "max_tokens": 2048,
                     "presence_penalty": 0,

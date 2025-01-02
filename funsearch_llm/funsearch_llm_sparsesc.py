@@ -287,6 +287,10 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
+<<<<<<< Updated upstream
         log_dir='logs/low_rank_matrix_models/sparsesc/funsearch_sparsesc',
+=======
+        log_dir='logs/low_rank_matrix_models/sparsesc/funsearch_sparsesc_10',
+>>>>>>> Stashed changes
         temperature=0
     )

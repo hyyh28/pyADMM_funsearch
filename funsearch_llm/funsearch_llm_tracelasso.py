@@ -240,9 +240,18 @@ def evaluate(instances: dict) -> float:
     # Generate toy data
     d = instances['d']
     na = instances['na']
+<<<<<<< Updated upstream
 
     A = np.random.randn(d, na)
     b = np.random.randn(d)
+=======
+    nb = instances['nb']
+
+    A = np.random.randn(d, na)
+    X_true = np.random.randn(na, nb)
+    B = A @ X_true
+    b = B[:, 0]
+>>>>>>> Stashed changes
     
     # Options for trace Lasso minimization
     opts = instances

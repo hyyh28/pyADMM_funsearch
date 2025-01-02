@@ -303,7 +303,11 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
+<<<<<<< Updated upstream
         log_dir='logs/low_rank_matrix_models/latlrr/funsearch_latlrr',
+=======
+        log_dir='logs/low_rank_matrix_models/latlrr/funsearch_latlrr_100',
+>>>>>>> Stashed changes
         temperature=0
     )
 
